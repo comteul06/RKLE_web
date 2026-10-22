@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#121218">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Rhygay 가사 편집기</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- 일본어 형태소 분석 (한자 읽기 / 한글 독음 자동 생성) -->
+  <script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js" defer></script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- ================= 툴바 ================= -->
+    <header class="toolbar">
+      <div class="group">
+        <button id="openBtn" title="곡 폴더 열기 (Ctrl+O) · 창에 끌어다 놓아도 됩니다">📂<span class="lbl"> 열기</span></button>
+        <button id="saveBtn" title="저장 (Ctrl+S)">💾<span class="lbl"> 저장</span></button>
+      </div>
+      <div class="group">
+        <button id="playBtn" class="play" title="재생 / 일시정지 (Space)">▶</button>
+        <span id="timeText" class="mono time">0:00.000 / 0:00.000</span>
+      </div>
+      <div class="group">
+        <label class="snap">스냅 <select id="snapSel" title="숫자키 1~8"></select></label>
+      </div>
+      <div class="group zoom">
+        <button id="zoomOut" title="축소">−</button>
+        <span id="zoomText" class="mono">100%</span>
+        <button id="zoomIn" title="확대">＋</button>
+      </div>
+      <div class="group">
+        <button id="undoBtn" title="되돌리기 (Ctrl+Z)">↶</button>
+        <button id="redoBtn" title="다시 실행 (Ctrl+Y)">↷</button>
+        <button id="helpBtn" title="사용법">?</button>
+      </div>
+      <span id="gridText" class="mono grid-text"></span>
+    </header>
+
+    <!-- ================= 본문: 타임라인 | 스크롤바 | 편집 패널 ================= -->
+    <main class="body">
+      <section class="timeline-wrap">
+        <canvas id="timeline"></canvas>
+        <div id="emptyHint" class="empty-hint">
+          곡 폴더(mp3 / wav 음원과 lyrics.json)를<br>
+          이 창에 끌어다 놓거나 <b>[📂 열기]</b>를 누르세요
+        </div>
+      </section>
+
+      <div class="vscroll" id="vscroll" title="타임라인 이동">
+        <button class="vs-btn vs-up" title="앞으로 한 칸 (↑)">▲</button>
+        <div class="vs-track"><div class="vs-thumb"></div></div>
+        <button class="vs-btn vs-down" title="뒤로 한 칸 (↓)">▼</button>
+      </div>
+
+      <aside class="panel" id="panel">
+        <nav class="tabs">
+          <button data-tab="line" class="active">문장</button>
+          <button data-tab="info">곡 정보</button>
+          <button data-tab="list">목록</button>
+        </nav>
+
+        <!-- ============ 문장 탭: 선택한 문장 + 하위 블럭 ============ -->
+        <div class="tab-body active" id="tab-line">
+          <div class="head">선택한 문장</div>
+          <div id="lineInfo" class="info mono">문장 블럭을 선택하세요</div>
+          <label class="lab">문장 가사 <span class="dim">(Enter: 타임라인으로)</span></label>
+          <input id="lineText" class="big" type="text" autocomplete="off" spellcheck="false">
+          <label class="check sub-check"><input type="checkbox" id="subCheck"> 서브 가사 <span class="dim">(노란색 · 끄면 기본 가사 파란색 · S)</span></label>
+
+          <div class="row-between">
+            <label class="lab">히라가나 — 한자 위 <span class="dim">星[ほし]が</span></label>
+            <button id="regenBtn" class="small" title="고친 읽기를 버리고 이 문장의 히라가나·한글 독음을 자동으로 다시 만든다">읽기 자동</button>
+          </div>
+          <textarea id="rubyText" rows="2" spellcheck="false"
+                    title="가사를 고치면 자동으로 만들어집니다. 괄호 안 읽기를 고치면 그 단어의 한글 독음도 따라 바뀝니다. 한자가 아닌 글자까지 묶으려면 {終わり}[おわり]"></textarea>
+          <label class="lab">한글 독음 — 일본어 아래 <span class="dim">星[호시]が[가]</span></label>
+          <textarea id="korText" rows="2" spellcheck="false"
+                    title="앞 ']' 다음부터 '[' 앞까지가 그 독음의 글자입니다. 조사 は/へ/を 는 와/에/오 로 만들어집니다."></textarea>
+
+          <div class="btns">
+            <button id="splitEvenBtn" title="문장 가사를 글자(영어는 단어) 단위로 나눠 하위 블럭을 문장 길이에 고르게 만든다 (기존 하위 블럭은 대체)">글자로 균등 나누기</button>
+            <button id="fillWordsBtn" title="이미 찍어 둔 하위 블럭에 문장 가사를 한 조각씩 순서대로 넣는다">하위 블럭에 채우기</button>
+            <button id="clearWordsBtn">하위 블럭 모두 지우기</button>
+            <button id="deleteLineBtn" class="danger">문장 삭제</button>
+          </div>
+
+          <div class="head">선택한 하위 블럭</div>
+          <div id="wordInfo" class="info mono">하위 블럭을 선택하세요</div>
+          <label class="lab">가사 조각 <span class="dim">(Enter 다음 · Shift+Enter 이전)</span></label>
+          <input id="wordText" class="bigger" type="text" autocomplete="off" spellcheck="false">
+          <div class="btns">
+            <button id="prevWordBtn" title="Shift+Tab">◀ 이전</button>
+            <button id="nextWordBtn" title="Tab">다음 ▶</button>
+            <button id="splitWordBtn" title="선택한 하위 블럭을 흰 선 위치(스냅)에서 둘로 나눈다 · PC: Ctrl+클릭">흰 선에서 나누기</button>
+            <button id="deleteWordBtn" class="danger" title="Delete">삭제</button>
+          </div>
+        </div>
+
+        <!-- ============ 곡 정보 탭 ============ -->
+        <div class="tab-body" id="tab-info">
+          <div class="head">곡 정보</div>
+          <label class="lab">제목</label>
+          <input id="titleBox" class="info-field" type="text" autocomplete="off">
+          <label class="lab">아티스트</label>
+          <input id="artistBox" class="info-field" type="text" autocomplete="off">
+          <div class="two">
+            <div><label class="lab">BPM</label><input id="bpmBox" class="info-field" type="text" inputmode="decimal"></div>
+            <div><label class="lab">마디당 박 수</label><input id="measureBox" class="info-field" type="text" inputmode="numeric"></div>
+          </div>
+          <label class="lab">오프셋 (0박의 음원 위치, 초)</label>
+          <div class="row">
+            <input id="offsetBox" class="info-field" type="text" inputmode="decimal">
+            <button id="offsetNowBtn" title="흰 선을 첫 박(마디 1의 시작)에 맞춘 뒤 누르세요">현재 위치로</button>
+          </div>
+          <label class="lab">음원 파일</label>
+          <select id="audioSel"></select>
+          <label class="lab">BGA 파일 (선택)</label>
+          <select id="videoSel"></select>
+          <label class="lab">BGA 오프셋 (초)</label>
+          <input id="videoOffsetBox" class="info-field" type="text" inputmode="decimal">
+
+          <div class="head">BPM 변화</div>
+          <div id="bpmList" class="list short"></div>
+          <div class="two">
+            <div><label class="lab">박</label><input id="bpmChangeBeat" type="text" inputmode="decimal"></div>
+            <div><label class="lab">BPM</label><input id="bpmChangeValue" type="text" inputmode="decimal"></div>
+          </div>
+          <div class="btns">
+            <button id="addBpmBtn">흰 선 위치에 추가</button>
+            <button id="applyBpmBtn">적용</button>
+            <button id="deleteBpmBtn" class="danger">삭제</button>
+          </div>
+        </div>
+
+        <!-- ============ 문장 목록 탭 ============ -->
+        <div class="tab-body" id="tab-list">
+          <div class="head">문장 목록 <span class="dim" id="lineCount"></span></div>
+          <div id="lineList" class="list tall"></div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- ================= 상태 표시줄 ================= -->
+    <footer class="status">
+      <span id="hintText" class="hint">빈 곳 = 문장 · 캡슐 안 = 하위 블럭 · 끝 끌기 = 길이 · 더블클릭 = 가사 · 우클릭 = 삭제 · 탐색 = 오른쪽 스크롤바 · Space 재생</span>
+      <span id="statusText" class="status-text"></span>
+    </footer>
+  </div>
+
+  <!-- 열기 (폴더 직접 열기를 못 하는 브라우저용) -->
+  <dialog id="openDialog">
+    <form method="dialog">
+      <h3>곡 열기</h3>
+      <p class="dim">lyrics.json 과 음원(mp3 / wav)이 든 곡 폴더를 고르세요.</p>
+      <div class="btns col">
+        <button type="button" id="pickDirBtn">📁 폴더 고르기</button>
+        <button type="button" id="pickFilesBtn">📄 파일 고르기 <span class="dim">(lyrics.json + 음원 여러 개 선택)</span></button>
+        <button value="cancel">닫기</button>
+      </div>
+      <p class="dim small-note" id="saveNote">이 브라우저에서는 저장하면 lyrics.json 이 <b>다운로드</b>됩니다. 곡 폴더의 파일을 바꿔 넣어 주세요.</p>
+    </form>
+  </dialog>
+  <input type="file" id="dirInput" webkitdirectory directory multiple hidden>
+  <input type="file" id="filesInput" multiple hidden accept=".json,.mp3,.wav,.flac,.ogg,.m4a,.mp4,audio/*,video/mp4,application/json">
+
+  <!-- 사용법 -->
+  <dialog id="helpDialog">
+    <form method="dialog">
+      <h3>사용법</h3>
+      <table class="help">
+        <tr><th>탐색</th><td>오른쪽 스크롤바 끌기 / 빈 곳 탭 · ▲▼ 한 칸 (누르고 있으면 계속) · 눈금자(왼쪽 숫자 열) 탭 = 그 위치로</td></tr>
+        <tr><th>확대 / 축소</th><td>툴바의 − / ＋ 버튼</td></tr>
+        <tr><th>새 문장</th><td>레인의 빈 곳 탭 (4박) 또는 위로 끌기</td></tr>
+        <tr><th>새 하위 블럭</th><td>문장 캡슐 안 빈 곳 탭 (다음 블럭까지) 또는 끌기</td></tr>
+        <tr><th>길이 / 이동</th><td>캡슐·블럭의 위/아래 끝 끌기 = 길이 · 테두리(블럭 가운데) 끌기 = 이동</td></tr>
+        <tr><th>가사 입력</th><td>블럭 더블탭 / 더블클릭 → 오른쪽 입력칸</td></tr>
+        <tr><th>나누기</th><td>[흰 선에서 나누기] · PC: Ctrl+클릭</td></tr>
+        <tr><th>삭제</th><td>패널의 삭제 버튼 · PC: 우클릭 / Delete</td></tr>
+        <tr><th>단축키 (PC)</th><td>Space 재생 · ↑↓ 한 칸 (Shift 한 마디) · PgUp/PgDn 한 마디 · Home/End · 1~8 스냅 · S 서브 가사 · Tab 다음 조각 · Enter 가사 입력 · Ctrl+S 저장 · Ctrl+O 열기 · Ctrl+Z/Y</td></tr>
+      </table>
+      <p class="dim">일본어 가사는 한자 위 히라가나, 단어 아래 한글 독음이 자동으로 만들어집니다 (처음 한 번 사전을 내려받습니다).</p>
+      <div class="btns"><button value="close">닫기</button></div>
+    </form>
+  </dialog>
+
+  <!-- 세로 화면 안내 -->
+  <div class="rotate-hint">📱↻<br>가로 화면으로 돌려 주세요</div>
+</body>
+</html>
